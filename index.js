@@ -5,6 +5,11 @@ const pg = require('pg');
 const app = express();
 const crypto = require('crypto');
 var query_handler = require('./server');
+var Test = require('./Test');
+const fs = require('fs-extra');
+const puppeteer = require('puppeteer');
+const hbs = require('handlebars');
+const path = require('path');
 var unique_id;
 var unique_name;
 var query_string;
@@ -13,6 +18,17 @@ var app_no;
 var verbal_no;
 var correct_ans;
 var flag;
+
+
+
+app.use(function (request, response, next) {
+    response.header("Access-Control-Allow-Origin", "*");
+    response.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    response.header("Access-Control-Allow-Credentials", true);
+    next();
+});
+
+
 
 
 app.use(bodyparser.json());
@@ -55,29 +71,31 @@ app.post('/login', async (req, res) => {
         res.status(400).send("failure");
 })
 
-function sendMail(obj) {
-    var api_key = '293ba28ae5e4f7a4451356fabe0b03db-b9c15f4c-117e84ca';
-    var domain = 'sandbox6b6c486aaa34451895195b718894f9ce.mailgun.org';
+// function sendMail(obj) {
+
+//     var api_key = '62b50189fe5186c88681fdef72578d5d-9ce9335e-1e4e69f2';
+//     var domain = 'sandbox99f3f423edfb4d3bb064c6c15bfa9dfb.mailgun.org';
 
 
-    var mailgun = require('mailgun-js')({ apiKey: api_key, domain: domain });
-    console.log("The email data:", obj.email);
 
-    var data = {
-        from: 'Online exam portal <yashwanthi97@gmail.com>',
-        to: `${obj.email}`,
-        subject: 'user id and password',
-        text: `${obj.unique_name},${obj.unique_id}`
-    };
-    //console.log("Thedata:",data)
-    mailgun.messages().send(data, function (error, body) {
-        if (error) {
-            console.log(error);
-        }
+//     var mailgun = require('mailgun-js')({ apiKey: api_key, domain: domain });
+//     console.log("The email data:", obj.email);
 
-        console.log(body);
-    });
-}
+//     var data = {
+//         from: 'Online exam portal <yashwanthirg@gmail.com>',
+//         to: `${obj.email}`,
+//         subject: 'user id and password',
+//         text: `${obj.unique_name},${obj.unique_id}`
+//     };
+//     //console.log("Thedata:",data)
+//     mailgun.messages().send(data, function (error, body) {
+//         if (error) {
+//             console.log(error);
+//         }
+
+//         console.log(body);
+//     });
+//}
 
 
 app.post('/upload', async (req, res) => {
@@ -137,7 +155,7 @@ app.post('/get_question', async (req, res) => {
 app.post('/on_submit', async (req, res) => {
     var submit_data_temp = req.body.submit_data;
     var count = 0;
-    var score = 0
+    var score = 0;
     for (var i = 0; i < Object.keys(submit_data_temp).length; i++) {
         console.log(i, req.body.submit_data[i]);
         query_string = `insert into answers(student_id,question_id,type,answer,score) 
@@ -188,8 +206,9 @@ app.post('/on_submit', async (req, res) => {
 app.post('/result', async (req, res) => {
     query_string = `select sum(score) from answers  where student_id =${req.body.student_id}`;
     resp = await query_handler(query_string);
-    console.log(resp.rows);
-    if (resp.rowCount >= 1) {
+     console .log(resp.rows);
+     resp = await query_handler(query_string);
+     if (resp.rowCount >= 1) {
         res.status(200).send(resp.rows);
     }
     else
@@ -199,7 +218,7 @@ app.post('/result', async (req, res) => {
 
 app.post('/history', async (req, res) => {
     query_string = `insert into history(test_id,student_id,test_date,start_time,end_time,score)
-    values('${req.body.test_id}','${req.body.student_id}','${req.body.test_date}','${req.body.start_time}','${req.body.end_time}','${req.body.score}')`;
+    values('${req.body.test_id}','${req.body.student_id}','${Test.getDate()}','${Test.getTime()}','${req.body.end_time}','${req.body.score}')`;
     resp = await query_handler(query_string);
     console.log(query_string);
     if (resp.rowCount === 1)
@@ -207,7 +226,11 @@ app.post('/history', async (req, res) => {
     else
         res.status(400).send('failure');
 
-})
+});
+
+
+
+
 
 
 app.post('/signup', async (req, res) => {
@@ -228,10 +251,111 @@ app.post('/signin', async (req, res) => {
         res.status(400).send("Failure");
 })
 
+
+   
+    
+const compile = async function(templateName,data){
+    const filePath=path.join(process.cwd(),`${templateName}.hbs`);
+    const html= await fs.readFile(filePath, 'utf-8');
+    console.log(html);
+
+
+return hbs.compile(html)(data);
+
+
+
+};
+
+
+app.post('/pdf',async(req,res)=>{
+    query_string = `select * from registration where student_id = '${req.body.student_id}'`;
+        resp = await query_handler(query_string)
+        if (resp.rowCount === 1) {
+            console.log("comming here");
+            var name = resp.rows[0].name;
+            var colg = resp.rows[0].college_name;
+            var colg_id = resp.rows[0].college_id;
+            var dob = resp.rows[0].date_of_birth;
+           var email = resp.rows[0].email;
+             var contact = resp.rows[0].contact_number;
+        }
+        query_string=`select * from `
+    var data=`<style>h1{color:blue}</style>
+    <h1>Hi ${name} your report analysis is </h1>
+              <table> <tr> NAME:</tr> <td>${name}</td><tr> COLLEGE:</tr><td>${colg}</td> 
+               <tr>EMAIL:</tr><td>${email}</td><tr> CONTACT:</tr><td>${contact}</td></table>
+
+                <table> <tr> <th>NAME</th> <th>SCORE</th> </tr>
+                <tr><td>${name}</td><td>45</td></tr></table>`;
+fs.writeFile('shot-list.hbs', data) ;
+    
+    try{
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
+        const content= await compile('shot-list',data);
+        await page.setContent(content);
+        await page.emulateMedia('screen');
+        await  page.pdf({
+            path:`${name}.pdf`,
+            format:'A4',
+            printBackground: true
+        });
+        console.log('done');
+        await browser.close();
+        process.exit();
+            
+
+        }catch(e){
+            console.log( 'the error is', e);
+        }
+    });
+
+app.post('/get_count',async(req,res)=>{
+    query_string=`select count(student_id) from registration`;
+    resp= await query_handler(query_string);
+    console.log(resp.rows);
+    if (resp.rowCount >= 1) {
+        res.status(200).send(resp.rows);
+    }
+    else
+        res.status(400).send('failure');
+});
+
+    
+app.post('/get_count_question',async(req,res)=>{
+    var type;
+    if(req.body.type==='apptitude'){
+        query_string = ` select count  (question_id)from apptitude`;
+        resp = await query_handler(query_string);
+        console.log(resp.rows);
+    }
+    if(req.body.type==='verbal'){
+        query_string = `  select count (question_id)from verbal`;
+        resp = await query_handler(query_string);
+        console.log(resp.rows);
+
+    }
+
+
+})
+
+
+
+app.post('/total score',async(req,res)=>{
+    query_string=`insert into score(student_id,apptitude,vebal,total)
+    values('${req.body.student_id}',(select sum(score)from answers where student_id=${req.body.student_id} and type='apptitude'),select sum(score) from answers where student_id=${req.body.student_id} and type='verbal'),select sum(score) from answers where student_id=${req.body.student_id})`;
+resp = await query_handler(query_string);
+if (resp.rowCount >= 1) {
+    res.status(200).send(resp.rows);
+}
+else
+    res.status(400).send('failure');
+});
+
+
+
 app.listen(3000, () => {
     console.log('server started');
 })
 module.exports = app;
-
-
-
+    
